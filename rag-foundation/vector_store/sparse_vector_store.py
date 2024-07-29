@@ -86,8 +86,16 @@ class SparseVectorStore(BaseVectorStore):
             self.nd = content["nd"]
 
     def _initialize(self, corpus: List[List[str]]):
+        if not corpus:
+            logger.warning("Empty corpus provided. Initialization skipped.")
+            return
+
+        self.corpus_size = len(corpus)  # Set corpus size at the beginning
         nd = {}  # word -> number of documents with word
         num_doc = 0
+        self.doc_len = []  # Reset doc_len
+        self.doc_freqs = []  # Reset doc_freqs
+
         for document in corpus:
             self.doc_len.append(len(document))
             num_doc += len(document)
@@ -105,20 +113,20 @@ class SparseVectorStore(BaseVectorStore):
                 except KeyError:
                     nd[word] = 1
 
-            self.corpus_size += 1
+        # Calculate avgdl safely
+        if self.corpus_size > 0:
+            self.avgdl = num_doc / self.corpus_size
+        else:
+            self.avgdl = 0
+            logger.warning("Corpus size is zero. Average document length set to 0.")
 
-        self.avgdl = num_doc / self.corpus_size
         self.idf = {
             word: self._calculate_idf(doc_count, self.corpus_size)
             for word, doc_count in nd.items()
         }
 
     def _calculate_idf(self, doc_count: int, corpus_size: int) -> float:
-        # Calculate the inverse document frequency for a word
-        # HINT: Use the formula provided in the BM25 algorithm and np.log()
-        "Your code here"
-        idf_score = None
-        return idf_score
+        return np.log((corpus_size - doc_count + 0.5) / (doc_count + 0.5) + 1)
 
     def _tokenize_text(self, corpus: List[str] | str):
         if isinstance(corpus, str):
@@ -132,8 +140,8 @@ class SparseVectorStore(BaseVectorStore):
         """Add nodes to index."""
         for node in nodes:
             self.node_dict[node.id_] = node
+        self.node_list=list(self.node_dict.values())
         self._update_csv()  # Update CSV after adding nodes
-
         # Reinitialize BM25 assets after adding new nodes
         self._initialize_bm25_assets()
 
@@ -151,11 +159,9 @@ class SparseVectorStore(BaseVectorStore):
         score = np.zeros(self.corpus_size)
         tokenized_query = self._tokenize_text(query)
         for q in tokenized_query:
-            # calulate the score for each token in the query
-            # HINT: use self.doc_freqs, self.idf, self.corpus_size, self.avgdl
-            "Your code here"
-            cur_score = None
-            score += cur_score
+            q_freq = np.array([(doc.get(q) or 0) for doc in self.doc_freqs])
+            score += (self.idf.get(q) or 0) * (q_freq * (self.k1 + 1) / 
+                    (q_freq + self.k1 * (1 - self.b + self.b * np.array(self.doc_len) / self.avgdl)))
         return score
 
     def query(self, query: str, top_k: int = 3) -> VectorStoreQueryResult:

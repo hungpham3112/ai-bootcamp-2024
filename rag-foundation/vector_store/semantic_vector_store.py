@@ -6,7 +6,6 @@ from typing import Dict, List, cast
 import numpy as np
 from loguru import logger
 from sentence_transformers import SentenceTransformer
-
 from .base import BaseVectorStore
 from .node import TextNode, VectorStoreQueryResult
 
@@ -40,10 +39,10 @@ class SemanticVectorStore(BaseVectorStore):
         """Add nodes to index."""
         for node in nodes:
             if node.embedding is None:
-                logger.info(
-                    "Found node without embedding, calculating "
-                    f"embedding with model {self.embed_model_name}"
-                )
+                # logger.info(
+                #     "Found node without embedding, calculating "
+                #     f"embedding with model {self.embed_model_name}"
+                # )
                 node.embedding = self._get_text_embedding(node.text)
             self.node_dict[node.id_] = node
         self._update_csv()  # Update CSV after adding nodes
@@ -76,17 +75,18 @@ class SemanticVectorStore(BaseVectorStore):
         # the query embedding with the document embeddings
         # HINT: np.dot
         "Your code here"
-        dproduct_arr = None
+        dproduct_arr = np.dot(dembed_np, qembed_np)
         # calculate the cosine similarity
         # by dividing the dot product by the norm
         # HINT: np.linalg.norm
         "Your code here"
-        cos_sim_arr = None
+        cos_sim_arr = dproduct_arr / (np.linalg.norm(dembed_np, axis=1) * np.linalg.norm(qembed_np))
 
         # get the indices of the top k similarities
         "Your code here"
-        similarities = None
-        node_ids = None
+        top_k_indices = np.argsort(cos_sim_arr)[-similarity_top_k:][::-1]
+        similarities = cos_sim_arr[top_k_indices].tolist()
+        node_ids = [doc_ids[i] for i in top_k_indices]
 
         return similarities, node_ids
 
